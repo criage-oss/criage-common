@@ -23,7 +23,7 @@ import (
 type Manager struct {
 	config  *config.Config
 	version string
-	
+
 	// Кодировщики/декодеры
 	zstdEncoder *zstd.Encoder
 	zstdDecoder *zstd.Decoder
@@ -65,7 +65,7 @@ func (m *Manager) Close() error {
 // DetectFormat определяет формат архива по расширению файла
 func (m *Manager) DetectFormat(filename string) types.ArchiveFormat {
 	filename = strings.ToLower(filename)
-	
+
 	switch {
 	case strings.HasSuffix(filename, ".tar.zst"):
 		return types.FormatTarZst
@@ -143,11 +143,7 @@ func (m *Manager) extractTar(archivePath, destDir string, format types.ArchiveFo
 	var reader io.Reader
 	switch format {
 	case types.FormatTarZst:
-		reader, err = m.zstdDecoder.DecodeAll(nil, nil)
-		if err != nil {
-			return err
-		}
-		reader = file
+		reader = m.zstdDecoder.IOReadCloser(file)
 	case types.FormatTarLZ4:
 		reader = lz4.NewReader(file)
 	case types.FormatTarXZ:
@@ -349,8 +345,9 @@ func (m *Manager) createTarArchive(sourceDir, outputPath string, format types.Ar
 	var writer io.Writer
 	switch format {
 	case types.FormatTarZst:
-		writer = m.zstdEncoder.EncodeAll(nil, nil)
-		writer = file
+		// Для zstd используем encoder напрямую
+		m.zstdEncoder.Reset(file)
+		writer = m.zstdEncoder
 	case types.FormatTarLZ4:
 		writer = lz4.NewWriter(file)
 	case types.FormatTarXZ:
