@@ -1,0 +1,265 @@
+name: Release Criage Common
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  GO_VERSION: "1.21"
+  MODULE_NAME: "criage-common"
+  VERSION: "1.0.0"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod tidy && go mod download
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check code formatting
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted:"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Build module
+        run: go build -v ./...
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Gosec Security Scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: ./...
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [test, lint, security]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build for multiple platforms
+        run: |
+          mkdir -p dist
+          
+          # Linux amd64
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/criage-common-linux-amd64 .
+          
+          # Linux arm64
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/criage-common-linux-arm64 .
+          
+          # Windows amd64
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/criage-common-windows-amd64.exe .
+          
+          # Windows arm64
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o dist/criage-common-windows-arm64.exe .
+          
+          # macOS amd64
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/criage-common-darwin-amd64 .
+          
+          # macOS arm64
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/criage-common-darwin-arm64 .
+
+      - name: Create archives
+        run: |
+          cd dist
+          
+          # Linux
+          tar -czf criage-common-linux-amd64.tar.gz criage-common-linux-amd64
+          tar -czf criage-common-linux-arm64.tar.gz criage-common-linux-arm64
+          
+          # Windows
+          zip criage-common-windows-amd64.zip criage-common-windows-amd64.exe
+          zip criage-common-windows-arm64.zip criage-common-windows-arm64.exe
+          
+          # macOS
+          tar -czf criage-common-darwin-amd64.tar.gz criage-common-darwin-amd64
+          tar -czf criage-common-darwin-arm64.tar.gz criage-common-darwin-arm64
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.{tar.gz,zip}
+          body: |
+            ## Criage Common v${{ env.VERSION }}
+            
+            Общий модуль для экосистемы пакетного менеджера Criage.
+            
+            ### 📦 Компоненты:
+            
+            - **Types** - общие типы данных для всех компонентов
+            - **Config** - управление конфигурацией 
+            - **Archive** - работа с архивами пакетов
+            
+            ### 🔧 Поддерживаемые форматы архивов:
+            - tar.zst (Zstandard) - рекомендуется
+            - tar.lz4 (LZ4) - быстрый
+            - tar.xz (XZ) - компактный  
+            - tar.gz (Gzip) - совместимость
+            - zip - Windows
+            - criage - универсальное расширение
+            
+            ### 🚀 Использование:
+            
+            ```bash
+            go get github.com/criage-oss/criage-common@${{ github.ref_name }}
+            ```
+            
+            ```go
+            import "github.com/criage-oss/criage-common/types"
+            import "github.com/criage-oss/criage-common/config"
+            import "github.com/criage-oss/criage-common/archive"
+            ```
+            
+            ### 🔗 Используется в:
+            - [criage-client](https://github.com/criage-oss/criage-client) - CLI пакетного менеджера
+            - [criage-server](https://github.com/criage-oss/criage-server) - HTTP сервер репозитория
+            - [criage-mcp](https://github.com/criage-oss/criage-mcp) - MCP сервер для AI
+            
+            ### 📚 Документация:
+            - [README.md](README.md) - основная документация
+            - [GoDoc](https://pkg.go.dev/github.com/criage-oss/criage-common)
+            - [Примеры использования](https://criage.ru/docs.html)
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-pkg:
+    name: Publish to Go Package Registry
+    runs-on: ubuntu-latest
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Publish to pkg.go.dev
+        run: |
+          # pkg.go.dev автоматически индексирует публичные модули
+          # Просто убеждаемся, что модуль корректный
+          go mod tidy
+          go mod verify
+          echo "Module will be automatically indexed by pkg.go.dev"
+
+  update-dependents:
+    name: Notify Dependent Repositories
+    runs-on: ubuntu-latest
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Trigger client update
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'criage-oss',
+              repo: 'criage-client',
+              workflow_id: 'update-dependencies.yml',
+              ref: 'main',
+              inputs: {
+                common_version: '${{ github.ref_name }}'
+              }
+            });
+
+      - name: Trigger server update  
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'criage-oss',
+              repo: 'criage-server',
+              workflow_id: 'update-dependencies.yml', 
+              ref: 'main',
+              inputs: {
+                common_version: '${{ github.ref_name }}'
+              }
+            });
+
+      - name: Trigger MCP update
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'criage-oss',
+              repo: 'criage-mcp',
+              workflow_id: 'update-dependencies.yml',
+              ref: 'main', 
+              inputs: {
+                common_version: '${{ github.ref_name }}'
+              }
+            });
