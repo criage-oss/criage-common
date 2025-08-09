@@ -143,7 +143,11 @@ func (m *Manager) extractTar(archivePath, destDir string, format types.ArchiveFo
 	var reader io.Reader
 	switch format {
 	case types.FormatTarZst:
-		reader = m.zstdDecoder.IOReadCloser(file)
+		err = m.zstdDecoder.Reset(file)
+		if err != nil {
+			return err
+		}
+		reader = m.zstdDecoder.IOReadCloser()
 	case types.FormatTarLZ4:
 		reader = lz4.NewReader(file)
 	case types.FormatTarXZ:
