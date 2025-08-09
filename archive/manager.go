@@ -214,7 +214,9 @@ func (m *Manager) extractZip(archivePath, destDir string) error {
 		}
 
 		if file.FileInfo().IsDir() {
-			os.MkdirAll(target, file.FileInfo().Mode())
+			if err := os.MkdirAll(target, file.FileInfo().Mode()); err != nil {
+				return err
+			}
 			continue
 		}
 
