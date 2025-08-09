@@ -1,0 +1,7 @@
+{
+    "global": {
+        "exclude": {
+            "G304": "File inclusion warnings are false positives in archive manager context where file path variables are expected and validated"
+        }
+    }
+}

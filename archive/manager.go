@@ -53,13 +53,16 @@ func NewManager(cfg *config.Config, version string) (*Manager, error) {
 
 // Close освобождает ресурсы менеджера
 func (m *Manager) Close() error {
+	var err error
 	if m.zstdEncoder != nil {
-		m.zstdEncoder.Close()
+		if closeErr := m.zstdEncoder.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
 	}
 	if m.zstdDecoder != nil {
-		m.zstdDecoder.Close()
+		m.zstdDecoder.Close() // zstdDecoder.Close() не возвращает ошибку
 	}
-	return nil
+	return err
 }
 
 // DetectFormat определяет формат архива по расширению файла
@@ -119,7 +122,7 @@ func (m *Manager) detectCriageFormat(filename string) types.ArchiveFormat {
 
 // ExtractArchive извлекает архив в указанную директорию
 func (m *Manager) ExtractArchive(archivePath, destDir string, format types.ArchiveFormat) error {
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := os.MkdirAll(destDir, 0750); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
@@ -184,11 +187,25 @@ func (m *Manager) extractTar(archivePath, destDir string, format types.ArchiveFo
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+			// Безопасное преобразование режима файла с проверкой диапазона
+			var mode os.FileMode
+			if header.Mode < 0 || header.Mode > 0777 {
+				mode = 0755 // Дефолтные права доступа
+			} else {
+				mode = os.FileMode(header.Mode) & 0777
+			}
+			if err := os.MkdirAll(target, mode); err != nil {
 				return err
 			}
 		case tar.TypeReg:
-			if err := m.extractFile(tarReader, target, os.FileMode(header.Mode)); err != nil {
+			// Безопасное преобразование режима файла с проверкой диапазона
+			var mode os.FileMode
+			if header.Mode < 0 || header.Mode > 0777 {
+				mode = 0644 // Дефолтные права доступа
+			} else {
+				mode = os.FileMode(header.Mode) & 0777
+			}
+			if err := m.extractFile(tarReader, target, mode); err != nil {
 				return err
 			}
 		}
@@ -226,10 +243,12 @@ func (m *Manager) extractZip(archivePath, destDir string) error {
 		}
 
 		if err := m.extractFile(fileReader, target, file.FileInfo().Mode()); err != nil {
-			fileReader.Close()
+			_ = fileReader.Close() // Игнорируем ошибку при аварийном закрытии
 			return err
 		}
-		fileReader.Close()
+		if err := fileReader.Close(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -237,7 +256,7 @@ func (m *Manager) extractZip(archivePath, destDir string) error {
 
 // extractFile извлекает отдельный файл
 func (m *Manager) extractFile(src io.Reader, destPath string, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destPath), 0750); err != nil {
 		return err
 	}
 
@@ -321,7 +340,7 @@ func (m *Manager) CreateArchiveWithMetadata(sourceDir, outputPath string, format
 		return err
 	}
 
-	if err := os.WriteFile(metadataFile, metadataData, 0644); err != nil {
+	if err := os.WriteFile(metadataFile, metadataData, 0600); err != nil {
 		return err
 	}
 
