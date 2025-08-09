@@ -20,7 +20,7 @@ import (
 const (
 	// Version of the common module
 	Version = "1.0.0"
-	
+
 	// ModuleName for identification
 	ModuleName = "criage-common"
 )

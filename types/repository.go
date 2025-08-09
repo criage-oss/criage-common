@@ -8,7 +8,7 @@ type Repository struct {
 	URL      string `json:"url" yaml:"url"`
 	Priority int    `json:"priority" yaml:"priority"`
 	Enabled  bool   `json:"enabled" yaml:"enabled"`
-	
+
 	// Авторизация
 	AuthToken string `json:"authToken,omitempty" yaml:"authToken,omitempty"`
 	Username  string `json:"username,omitempty" yaml:"username,omitempty"`
@@ -66,18 +66,18 @@ type SearchResult struct {
 
 // RepositoryIndex индекс репозитория
 type RepositoryIndex struct {
-	LastUpdated   time.Time               `json:"lastUpdated"`
-	TotalPackages int                     `json:"totalPackages"`
+	LastUpdated   time.Time                `json:"lastUpdated"`
+	TotalPackages int                      `json:"totalPackages"`
 	Packages      map[string]*PackageEntry `json:"packages"`
-	Statistics    *Statistics             `json:"statistics"`
+	Statistics    *Statistics              `json:"statistics"`
 }
 
 // Statistics статистика репозитория
 type Statistics struct {
-	TotalDownloads    int64            `json:"totalDownloads"`
-	PackagesByLicense map[string]int   `json:"packagesByLicense"`
-	PackagesByAuthor  map[string]int   `json:"packagesByAuthor"`
-	PopularPackages   []string         `json:"popularPackages"`
+	TotalDownloads    int64          `json:"totalDownloads"`
+	PackagesByLicense map[string]int `json:"packagesByLicense"`
+	PackagesByAuthor  map[string]int `json:"packagesByAuthor"`
+	PopularPackages   []string       `json:"popularPackages"`
 }
 
 // ApiResponse стандартный ответ API
