@@ -1,4 +1,6 @@
 # Criage Common
+[![Go Reference](https://pkg.go.dev/badge/github.com/criage-oss/criage-common.svg)](https://pkg.go.dev/github.com/criage-oss/criage-common)
+
 
 Общий модуль для экосистемы пакетного менеджера Criage, содержащий типы данных, конфигурацию и утилиты, используемые всеми компонентами.
 
